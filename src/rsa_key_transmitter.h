@@ -4,6 +4,7 @@
 #include "xstatus.h"
 #include "defines.h"
 
-XStatus initKeyTransmitter(rsaData *RSAData);
+XStatus initKeyTransmitter();
+void runKeyTransmitter(rsaData *RSAData);
 
 #endif

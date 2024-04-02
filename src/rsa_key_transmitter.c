@@ -17,13 +17,8 @@ bool UartSendAvailable();
 void UartSendBytes(u8 *data, int length);
 bool UartRecvAvailable();
 void UartRecvBytes(u8 *data, int length);
-void runKeyTransceiver();
 
-rsaData *RSAdata;
-
-XStatus initKeyTransmitter(rsaData *data) {
-	// Store the RSA data pointer
-	RSAdata = data;
+XStatus initKeyTransmitter() {
 
 	// Initialize UART
 	XUartPs_Config *Config;
@@ -44,47 +39,49 @@ XStatus initKeyTransmitter(rsaData *data) {
 
 	xil_printf("UART initialized\n\r");
 
-	// Run the key transceiver
-	runKeyTransceiver();
-
 	return XST_SUCCESS;
 }
 
 // TODO: Add timeouts to UART
 
-void runKeyTransceiver() {
+void runKeyTransmitter(rsaData *RSAData) {
+	// Check if there is UART data to read
+	if (!UartRecvAvailable()) {
+		return;
+	}
+
+	u8 data, resp;
+	// Read command
+	UartRecvBytes(&data, 1);
+
+	// Check if command is correct
+	if (data != 0x01) {
+		#ifdef DEBUG
+			xil_printf("Error: Received unknown command\n\r");
+		#endif
+		return;
+	}
+
+	// Wait for room to send data
+	while (!UartSendAvailable());
+
+	// Acknowledge command
+	resp = 0x01;
+	UartSendBytes(&resp, 1);
+
 	#ifdef DEBUG
 		xil_printf("Transmitting RSA key\n\r");
 	#endif
-	
+
 	// Calculate a seed based on the runtime of the program
 	XTime currentTime;
 	XTime_GetTime(&currentTime);
 
 	// Generate RSA keys
-	generateRSAKeys(RSAdata, currentTime);
+	generateRSAKeys(RSAData, currentTime);
 
 	// Wait for room to send data
 	while (!UartSendAvailable());
-
-	// Send ping command
-	u8 data = 0x01;
-	UartSendBytes(&data, 1);
-
-	// Wait for response
-	while (!UartRecvAvailable());
-
-	// Receive response
-	u8 resp;
-	UartRecvBytes(&resp, 1);
-
-	// Check if response is correct
-	if (resp != 0x01) {
-		#ifdef DEBUG
-			xil_printf("Error: Received incorrect response\n\r");
-		#endif
-		return;
-	}
 
 	// Send RSA key command
 	data = 0x02;
@@ -109,7 +106,7 @@ void runKeyTransceiver() {
 
 	// Send RSA key data
 	u8 keyData[8];
-	*((uint64_t *) keyData) = RSAdata->publicKey;
+	*((uint64_t *) keyData) = RSAData->publicKey;
 	UartSendBytes(keyData, 8);
 
 	// Wait for response
@@ -131,7 +128,7 @@ void runKeyTransceiver() {
 
 	// Send RSA modulus data
 	u8 modulusData[4];
-	*((uint32_t *) modulusData) = RSAdata->modulus;
+	*((uint32_t *) modulusData) = RSAData->modulus;
 	UartSendBytes(modulusData, 4);
 
 	// Wait for response
