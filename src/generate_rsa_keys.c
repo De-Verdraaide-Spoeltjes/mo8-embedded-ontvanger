@@ -99,9 +99,7 @@ void generatePrivateKey(int totient, rsaData *data) {
 	}
 }
 
-rsaData* generateRSAKeys(uint64_t seed) {
-	rsaData data;
-
+void generateRSAKeys(rsaData *data, uint64_t seed) {
 	// Generate a list of prime numbers
 	seedPrimes();
 
@@ -120,28 +118,36 @@ rsaData* generateRSAKeys(uint64_t seed) {
 				}
 		}
 	}
-	xil_printf("Primes: %x, %x\n\r", p, q);
+	#ifdef DEBUG
+		xil_printf("Primes: %x, %x\n\r", p, q);
+	#endif
 
 	// Free the primes list from memory
 	free(primes);
 
 	// Calculate the modulus
-	data.modulus = p * q;
-	xil_printf("Modulus: %x\n\r", data.modulus);
+	data->modulus = p * q;
+	#ifdef DEBUG
+		xil_printf("Modulus: %x\n\r", data->modulus);
+	#endif
 
 	// Calculate the totient
 	uint32_t totient = (p - 1) * (q - 1);
-	xil_printf("Totient: %x\n\r", totient);
+	#ifdef DEBUG
+		xil_printf("Totient: %x\n\r", totient);
+	#endif
 
 	// Generate the public key
-	generatePublicKey(totient, &data);
-	xil_printf("Public key: ");
-	print64(data.publicKey);
+	generatePublicKey(totient, data);
+	#ifdef DEBUG
+		xil_printf("Public key: ");
+		print64(data->publicKey);
+	#endif
 
 	// Generate the private key
-	generatePrivateKey(totient, &data);
-	xil_printf("Private key: ");
-	print64(data.privateKey);
-
-	return &data;
+	generatePrivateKey(totient, data);
+	#ifdef DEBUG
+		xil_printf("Private key: ");
+		print64(data->privateKey);
+	#endif
 }

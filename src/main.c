@@ -4,11 +4,11 @@
 
 #include "defines.h"
 #include "generate_rsa_keys.h"
-#include "rsa_keys_transmitter.h"
+#include "rsa_key_transmitter.h"
 #include "rsa_decryption.h"
 #include "display.h"
 
-rsaData *RSAData;
+rsaData RSAData;
 
 int main()
 {
@@ -17,9 +17,12 @@ int main()
 
     XStatus status;
 
-    RSAData = generateRSAKeys(1);
+    // In debug mode, generate non-random RSA keys for testing
+    #ifdef DEBUG
+        generateRSAKeys(&RSAData, 1);
+    #endif
 
-    status = initKeyTransmitter();
+    status = initKeyTransmitter(&RSAData);
     if (status != XST_SUCCESS) {
     	print("Error initializing key transmitter\n\r");
     	cleanup_platform();

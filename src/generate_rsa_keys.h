@@ -4,6 +4,6 @@
 #include "xstatus.h"
 #include "defines.h"
 
-rsaData* generateRSAKeys(uint64_t seed);
+void generateRSAKeys(rsaData *data, uint64_t seed);
 
 #endif

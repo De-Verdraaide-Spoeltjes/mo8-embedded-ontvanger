@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define DEBUG
+
 typedef struct RSAData {
 	uint64_t publicKey;
 	uint64_t privateKey;
