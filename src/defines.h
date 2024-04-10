@@ -20,4 +20,18 @@ typedef struct RSAData {
 #define TIME_TO_NS(i) (i / TIME_TO_NS_DIVIDER)
 #define NS_TO_TIME(i) (i * TIME_TO_NS_DIVIDER)
 
+enum displayAlignment 
+{
+    Text_start_left, 
+    Text_start_center, 
+    Text_start_right
+};
+
+enum displayFontSelect 
+{
+    Font_small, 
+    Font_small_high, 
+    Font_large
+};
+
 #endif

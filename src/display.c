@@ -1,16 +1,17 @@
 #include "display.h"
-
+#include "libs/GFX/GFX.h"
 #include "defines.h"
 #include "xstatus.h"
 #include "sleep.h"
 #include "xiicps.h"
 #include "xtime_l.h"
 
-#define HEIGHT 64
-#define WIDTH 128
+#include "libs/GFX/fonts/Terminal5x8.h"
+#include "libs/GFX/fonts/Terminal5x10W.h"
+#include "libs/GFX/fonts/FreeSans9pt7b.h"
 
 #define IIC_DEVICE_ID XPAR_PS7_I2C_0_DEVICE_ID
-#define IIC_CLOCK_SPEED 400000
+#define IIC_CLOCK_SPEED 350000
 #define IIC_DELAY 100
 
 #define DISPLAY_WIDTH 128
@@ -58,49 +59,86 @@
 
 XIicPs iic;
 
-static unsigned char array[DISPLAY_WIDTH * DISPLAY_HEIGHT / 8]; // Display buffer
+static unsigned char displayData[DISPLAY_WIDTH * DISPLAY_HEIGHT / 8]; // Display buffer
 
 static void initialize_OLED();                        // Initialize OLED
-static void Flush();                                  // Send data
+static void WriteDisplay();                                  // Send data
 static void writeMulti(uint8_t *src, uint16_t count); // Write multiple bytes
+void DrawText(const char* text, uint16_t xpos, uint16_t ypos, uint8_t fontSize, uint8_t nullAlignment);
 
-void line(int x1, int x2, int y1, int y2);
 #define _swap_int16_t(a, b) { int16_t t = a; a = b; b = t; }
 
-void draw_pixel(int x, int y)
-{
-    if ((x < 0) || (x >= WIDTH) || (y < 0) || (y >= HEIGHT))
-    { // Check for boundaries
+static void display_drawPixel(uint16_t x, uint16_t y, enum displayPixelColor pixelColor) {
+	// uint32_t pixel = (((uint32_t)y) * DISPLAY_WIDTH) + x;
+
+	//    uint8_t bitmask = 0x80 >> (pixel % 8);
+	//    displayData[pixel / 8] |= bitmask;
+
+    uint8_t color = 0;
+	switch(pixelColor)
+	{
+		case BLACK:
+			color = 0;
+			break;
+		case WHITE:
+			color = 1;
+			break;
+		default:
+			color = 0;
+			break;
+	}
+
+    if ((x >= DISPLAY_WIDTH) || (y >= DISPLAY_HEIGHT))
+    {
+        //out of bounds
         return;
+    }
+
+    if (color)
+    {
+        displayData[x + (y / 8) * DISPLAY_WIDTH] |= (1 << (y & 7));
     }
     else
     {
-        array[x + (y / 8) * WIDTH] |= (1 << (y % 8)); // Store pixel in array
+        displayData[x + (y / 8) * DISPLAY_WIDTH] &= ~(1 << (y & 7));
     }
 }
 
-void draw_vertical_line(int x, int y1, int y2)
-{
-    if ((x < 0) || (x >= WIDTH) || (y1 >= HEIGHT) || (y2 < 0))
-    { // Check for boundaries
-        return;
-    }
-    else
-    {
-        if (y1 < 0)
-            y1 = 0;
-        if (y2 >= HEIGHT)
-            y2 = HEIGHT - 1;
+// draw a block to the memory
+static void display_drawBlock(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t pixelColor) {
+	//if (((x + width) > currentWindow_width) || ((y + height) > currentWindow_height))
+	//{
+	//	//out of bounds
+	//	return;
+	//}
 
-        for (int y = y1; y <= y2; y++)
+    for(uint16_t xp = 0; xp < width; xp++)
+    {
+        for(uint16_t yp = 0; yp < height; yp++)
         {
-            array[x + (y / 8) * WIDTH] |= (1 << (y % 8)); // Store pixel in array
-        }
+        	display_drawPixel(x + xp, y + yp, pixelColor);
+        }      
     }
 }
 
-XStatus initDisplay()
-{
+void setFontSize(enum displayFontSelect fontSelect) {
+    switch(fontSelect)
+    {
+        case Font_small:
+            GFX_setFont(&terminal5x8);	
+            break;
+            
+        case Font_small_high:
+            GFX_setFont(&terminal5x10W);	
+            break;
+            
+        case Font_large:
+            GFX_setFont(&FreeSans9pt7b);	
+            break;
+    }
+}
+
+XStatus initDisplay() {
     // --- init i2c ---
     // Initialize Comms
     XIicPs_Config *config;
@@ -109,42 +147,62 @@ XStatus initDisplay()
     config = XIicPs_LookupConfig(IIC_DEVICE_ID);
     if (config == NULL)
     {
+        #ifdef DEBUG
+        xil_printf("Error: XIicPs_LookupConfig\n");
+        #endif
         return XST_FAILURE;
     }
 
     status = XIicPs_CfgInitialize(&iic, config, config->BaseAddress);
     if (status != XST_SUCCESS)
     {
+        #ifdef DEBUG
+        xil_printf("Error: XIicPs_CfgInitialize\n");
+        #endif
         return XST_FAILURE;
     }
 
     status = XIicPs_SelfTest(&iic);
     if (status != XST_SUCCESS)
     {
+        #ifdef DEBUG
+        xil_printf("Error: XIicPs_SelfTest\n");
+        #endif
         return XST_FAILURE;
     }
 
     XIicPs_SetSClk(&iic, IIC_CLOCK_SPEED);
 
+    GFX_init(&display_drawPixel, &display_drawBlock, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+
+	GFX_setTextWrap(false);
+	GFX_setTextColor(WHITE);
+
     initialize_OLED();               // Initialize screen
-    memset(array, 0, sizeof(array)); // Initialize array with 0s
-    draw_pixel(1, 1);                // Store pixel at (x,y) location
-    draw_pixel(2, 1);                // Store pixel at (x,y) location
-    draw_pixel(4, 1);                // Store pixel at (x,y) location
-    draw_pixel(1, 62);               // Store pixel at (x,y) location
-    draw_pixel(1, 63);               // Store pixel at (x,y) location
-    line(0, 127, 0, 63);             // Draw line
+    memset(displayData, 0, sizeof(displayData)); // Initialize array with 0s
 
-    draw_vertical_line(0, 0, 63); // Draw vertical line
-
-    Flush();                         // Send data
+    WriteDisplay();                  // Send data
 
     return XST_SUCCESS;
 }
 
+// draw text
+void DrawText(const char* text, uint16_t xpos, uint16_t ypos, uint8_t fontSize, uint8_t nullAlignment) {
+    setFontSize(fontSize);
+
+	int16_t xtop = 0;
+	int16_t ytop = 0;
+	uint16_t width = 0;
+	uint16_t height = 0;
+
+	int lengthText = strlen(text);
+	GFX_getTextBounds((char*)text, lengthText, 0, 0, &xtop, &ytop, &width, &height);
+    GFX_setCursor(xpos - xtop - width*nullAlignment/2, ypos - ytop);
+    GFX_drawText((char*)text, lengthText);
+}
+
 static void initialize_OLED()
 {
-
     const uint8_t init_commmands[] = {
         COMMAND_MODE,
         // Init sequence for 128x64 OLED module
@@ -180,66 +238,7 @@ static void initialize_OLED()
     writeMulti((uint8_t *)init_commmands, sizeof(init_commmands) / sizeof(uint8_t));
 }
 
-/*Bresenham's line drawing algorithm*/
-
-void line(int x0, int x1, int y0, int y1)
-{
-    int16_t steep = abs(y1 - y0) > abs(x1 - x0);
-    if (steep)
-    {
-        _swap_int16_t(x0, y0);
-        _swap_int16_t(x1, y1);
-    }
-
-    if (x0 > x1)
-    {
-        _swap_int16_t(x0, x1);
-        _swap_int16_t(y0, y1);
-    }
-
-    int16_t dx, dy;
-    dx = x1 - x0;
-    dy = abs(y1 - y0);
-
-    int16_t err = dx / 2;
-    int16_t ystep;
-
-    if (y0 < y1)
-    {
-        ystep = 1;
-    }
-    else
-    {
-        ystep = -1;
-    }
-
-    for (; x0 <= x1; x0++)
-    {
-        if (steep)
-        {
-            draw_pixel(y0, x0);
-        }
-        else
-        {
-            draw_pixel(x0, y0);
-        }
-        err -= dy;
-        if (err < 0)
-        {
-            y0 += ystep;
-            err += dx;
-        }
-    }
-}
-
-static void Flush()
-{
-    // Wire.beginTransmission(I2C_SLAVE_DEVICE_ADDRESS); // Start communication with slave
-    // Wire.write(0x00);             // Command stream
-    // Wire.write(0x00);             // Set lower column start address for page addressing mode
-    // Wire.write(0x10);             // Set higher column start address for page addressing mode
-    // Wire.write(0x40);             // Set display start line
-    // Wire.endTransmission();       // End communication with slave
+void WriteDisplay() {
     const uint8_t flush_commands[] = {
         COMMAND_MODE,
         SH1106_SETLOWCOLUMN | 0x0,
@@ -249,8 +248,8 @@ static void Flush()
 
     writeMulti((uint8_t *)flush_commands, sizeof(flush_commands) / sizeof(uint8_t));
 
-    uint8_t height = HEIGHT;
-	uint8_t width = WIDTH + 4; 
+    uint8_t height = DISPLAY_HEIGHT;
+	uint8_t width = DISPLAY_WIDTH + 4;
 	uint8_t m_row = 0;
 	uint8_t m_col = 2;
 	
@@ -259,8 +258,7 @@ static void Flush()
 
     uint16_t pos = 0;
 
-    for (uint8_t page = 0; page < height; page++)
-    {
+    for (uint8_t page = 0; page < height; page++) {
         // set page address
         const uint8_t page_commands[] = {
             COMMAND_MODE,
@@ -276,33 +274,29 @@ static void Flush()
         };
 
         // write rows of page
-        for (uint8_t i = 0; i < 8; i++)
-        {
+        for (uint8_t i = 0; i < 8; i++) {
             // create buffer
             uint8_t buffer[width + 1];
-            memcpy(buffer, data_header, sizeof(data_header));
-            memcpy(buffer + 1, array + pos, width);
+            memcpy(buffer, data_header, sizeof(data_header) / sizeof(uint8_t));
+            memcpy(buffer + 1, displayData + pos, width);
 
             // increment position
             pos += width;
 
             // write buffer
-            writeMulti(buffer, width + 1);
+            writeMulti(buffer, sizeof(buffer) / sizeof(uint8_t));
         }
     }
 }
 
 // starting at the given register
-static void writeMulti(uint8_t *src, uint16_t count)
-{
+static void writeMulti(uint8_t *src, uint16_t count) {
     int status;
     status = XIicPs_MasterSendPolled(&iic, src, count, I2C_SLAVE_DEVICE_ADDRESS);
-    if (status != XST_SUCCESS)
-    {
+    if (status != XST_SUCCESS) {
 #ifdef DEBUG
         xil_printf("error writing: \t");
-        for (uint8_t i = 0; i < count; i++)
-        {
+        for (uint8_t i = 0; i < count; i++) {
             xil_printf(" %x", src[i]);
         }
         xil_printf("\r\n\r\n");
