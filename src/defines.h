@@ -30,7 +30,8 @@ enum displayAlignment
 enum displayFontSelect 
 {
     Font_small, 
-    Font_small_high, 
+    Font_medium, 
+	Font_medium_large,
     Font_large
 };
 

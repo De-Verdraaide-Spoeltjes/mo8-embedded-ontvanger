@@ -7,11 +7,12 @@
 #include "xtime_l.h"
 
 #include "libs/GFX/fonts/Terminal5x8.h"
-#include "libs/GFX/fonts/Terminal5x10W.h"
 #include "libs/GFX/fonts/FreeSans9pt7b.h"
+#include "libs/GFX/fonts/FreeSans12pt7b.h"
+#include "libs/GFX/fonts/FreeSansBold18pt7b.h"
 
 #define IIC_DEVICE_ID XPAR_PS7_I2C_0_DEVICE_ID
-#define IIC_CLOCK_SPEED 350000
+#define IIC_CLOCK_SPEED 400000
 #define IIC_DELAY 100
 
 #define DISPLAY_WIDTH 128
@@ -62,9 +63,7 @@ XIicPs iic;
 static unsigned char displayData[DISPLAY_WIDTH * DISPLAY_HEIGHT / 8]; // Display buffer
 
 static void initialize_OLED();                        // Initialize OLED
-static void WriteDisplay();                                  // Send data
 static void writeMulti(uint8_t *src, uint16_t count); // Write multiple bytes
-void DrawText(const char* text, uint16_t xpos, uint16_t ypos, uint8_t fontSize, uint8_t nullAlignment);
 
 #define _swap_int16_t(a, b) { int16_t t = a; a = b; b = t; }
 
@@ -128,12 +127,16 @@ void setFontSize(enum displayFontSelect fontSelect) {
             GFX_setFont(&terminal5x8);	
             break;
             
-        case Font_small_high:
-            GFX_setFont(&terminal5x10W);	
+        case Font_medium:
+            GFX_setFont(&FreeSans9pt7b);
+            break;
+
+        case Font_medium_large:
+        	GFX_setFont(&FreeSans12pt7b);
             break;
             
         case Font_large:
-            GFX_setFont(&FreeSans9pt7b);	
+            GFX_setFont(&FreeSansBold18pt7b);
             break;
     }
 }
@@ -287,6 +290,9 @@ void WriteDisplay() {
             writeMulti(buffer, sizeof(buffer) / sizeof(uint8_t));
         }
     }
+
+    // reset memory
+    memset(displayData, 0, sizeof(displayData));
 }
 
 // starting at the given register

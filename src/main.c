@@ -5,6 +5,7 @@
 #include "xil_printf.h"
 #include "xgpio.h"
 #include <stdbool.h>
+#include <stdio.h>
 
 #include "defines.h"
 #include "generate_rsa_keys.h"
@@ -21,6 +22,7 @@
 rsaData RSAData;
 XGpio leds, buttons;
 
+void demo(uint8_t);
 void statusLED();
 
 int main()
@@ -64,24 +66,39 @@ int main()
 
     print("Embedded application initialized\n\r");
 
+    demo(0);
+
     while(1) {
         statusLED();
         runKeyTransmitter(&RSAData);
 
         static bool prevButtonState = false;
+        static uint8_t counter = 0;
 
         bool buttonState = XGpio_DiscreteRead(&buttons, 1) & 0x1;
 
         if (buttonState && !prevButtonState && buttonState == true) {
             xil_printf("Button pressed\n\r");
-            initDisplay();
+            counter++;
+            demo(counter);
         }
-
         prevButtonState = buttonState;
     }
 
     cleanup_platform();
     return 0;
+}
+
+void demo(uint8_t value) {
+	char demoValue[15];
+	sprintf(demoValue, "Small demo %d", (int)value);
+
+	DrawText(demoValue, 0, 0, Font_small, Text_start_left);
+	DrawText("Medium", 128, 0, Font_medium, Text_start_right);
+	DrawText("Medium large", 128/2, 11, Font_medium_large, Text_start_center);
+	DrawText("Large", 128/2, 30, Font_large, Text_start_center);
+
+	WriteDisplay();                  // Send data
 }
 
 
