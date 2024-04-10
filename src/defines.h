@@ -15,4 +15,9 @@ typedef struct RSAData {
 #define RSA_PRIMES_MINIMUM 200
 #define RSA_PRIMES_MAXIMUM 10000
 
+
+#define TIME_TO_NS_DIVIDER 325 //XPAR_CPU_CORTEXA9_0_CPU_CLK_FREQ_HZ / 2000000
+#define TIME_TO_NS(i) (i / TIME_TO_NS_DIVIDER)
+#define NS_TO_TIME(i) (i * TIME_TO_NS_DIVIDER)
+
 #endif
