@@ -14,7 +14,7 @@
 #include "rsa_decryption.h"
 #include "display.h"
 
-#define STATUS_BLINK 200 //ms
+
 #define STATUS_LED_DEVICE_ID    XPAR_CONNECTION_EMBEDDED_STATUS_LED_DEVICE_ID
 #define BTNS_DEVICE_ID          XPAR_CONNECTION_EMBEDDED_BUTTONS_DEVICE_ID
 
@@ -22,8 +22,9 @@
 
 rsaData RSAData;
 XGpio leds, buttons;
+char code_buffer[CODE_LENGTH] = {'0', '0', '0', '0'};
 
-void demo(uint8_t);
+void DisplayCode(char* buffer, uint8_t length);
 void statusLED();
 
 void Initialize() {
@@ -76,22 +77,37 @@ int main()
 	// Initialize
 	Initialize();
 
-	// display demo
-    demo(0);
+	// display code
+	DisplayCode(code_buffer, CODE_LENGTH);
+
+	print("Entering main loop\n\r");
 
     while(1) {
         statusLED();
         runKeyTransmitter(&RSAData);
+        decryption(&RSAData, code_buffer);
+
+		// Display code if it has changed
+		static uint8_t buffer_old[CODE_LENGTH];
+		if (memcmp(code_buffer, buffer_old, CODE_LENGTH) != 0) {
+			DisplayCode(code_buffer, CODE_LENGTH);
+			memcpy(buffer_old, code_buffer, CODE_LENGTH);
+		}
 
         static bool prevButtonState = false;
-        static uint8_t counter = 0;
-
         bool buttonState = XGpio_DiscreteRead(&buttons, 1) & 0x1;
-
         if (buttonState && !prevButtonState && buttonState == true) {
             xil_printf("Button pressed\n\r");
-            counter++;
-            demo(counter);
+
+			// increment code
+			for (int i = CODE_LENGTH - 1; i >= 0; i--) {
+				code_buffer[i]++;
+				if (code_buffer[i] > '9') {
+					code_buffer[i] = '0';
+				} else {
+					break;
+				}
+			}
         }
         prevButtonState = buttonState;
     }
@@ -100,16 +116,14 @@ int main()
     return 0;
 }
 
-void demo(uint8_t value) {
-	char demoValue[15];
-	sprintf(demoValue, "Small demo %d", (int)value);
+void DisplayCode(char* buffer, uint8_t length) {
+	char codeString[CODE_LENGTH + 1];
+	memcpy(codeString, buffer, CODE_LENGTH);
+	codeString[CODE_LENGTH] = '\0';
 
-	DrawText(demoValue, 0, 0, Font_small, Text_start_left);
-	DrawText("Medium", 128, 0, Font_medium, Text_start_right);
-	DrawText("Medium large", 128/2, 11, Font_medium_large, Text_start_center);
-	DrawText("Large", 128/2, 30, Font_large, Text_start_center);
-
-	WriteDisplay();                  // Send data
+	DrawText(codeString, DISPLAY_WIDTH / 2, (DISPLAY_HEIGHT - 18) / 2, Font_large, Text_start_center);
+	
+	WriteDisplay();
 }
 
 
