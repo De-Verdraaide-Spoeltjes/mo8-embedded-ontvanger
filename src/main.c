@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include "sleep.h"
+#include "libs/GFX/GFX.h"
 
 #include "defines.h"
 #include "generate_rsa_keys.h"
@@ -16,16 +17,14 @@
 
 
 #define STATUS_LED_DEVICE_ID    XPAR_CONNECTION_EMBEDDED_STATUS_LED_DEVICE_ID
-#define BTNS_DEVICE_ID          XPAR_CONNECTION_EMBEDDED_BUTTONS_DEVICE_ID
-
-
 
 rsaData RSAData;
-XGpio leds, buttons;
+XGpio leds;
 char code_buffer[CODE_LENGTH] = {'0', '0', '0', '0'};
 
 void DisplayCode(char* buffer, uint8_t length);
 void statusLED();
+void displayData(bool decrypting);
 
 void Initialize() {
 	// In debug mode, generate non-random RSA keys for testing
@@ -70,9 +69,7 @@ int main()
     init_platform();
 	print("Starting embedded application\n\r");
 	XGpio_Initialize(&leds, STATUS_LED_DEVICE_ID);
-	XGpio_Initialize(&buttons, BTNS_DEVICE_ID);
 	XGpio_SetDataDirection(&leds, 1, 0x0);
-	XGpio_SetDataDirection(&buttons, 1, 0x1);
 
 	// Initialize
 	Initialize();
@@ -85,35 +82,41 @@ int main()
     while(1) {
         statusLED();
         runKeyTransmitter(&RSAData);
-        decryption(&RSAData, code_buffer);
+        bool decrypting = decryption(&RSAData, code_buffer);
 
-		// Display code if it has changed
-		static uint8_t buffer_old[CODE_LENGTH];
-		if (memcmp(code_buffer, buffer_old, CODE_LENGTH) != 0) {
-			DisplayCode(code_buffer, CODE_LENGTH);
-			memcpy(buffer_old, code_buffer, CODE_LENGTH);
-		}
-
-        static bool prevButtonState = false;
-        bool buttonState = XGpio_DiscreteRead(&buttons, 1) & 0x1;
-        if (buttonState && !prevButtonState && buttonState == true) {
-            xil_printf("Button pressed\n\r");
-
-			// increment code
-			for (int i = CODE_LENGTH - 1; i >= 0; i--) {
-				code_buffer[i]++;
-				if (code_buffer[i] > '9') {
-					code_buffer[i] = '0';
-				} else {
-					break;
-				}
-			}
-        }
-        prevButtonState = buttonState;
+        displayData(decrypting);
     }
 
     cleanup_platform();
     return 0;
+}
+
+void displayData(bool decrypting) {
+	bool updateDisplay = false;
+	// Display 'decrypting' if decryption is in progress, only if the code has changed
+	static bool decrypting_old = false;
+	if (decrypting != decrypting_old || updateDisplay) {
+		if (decrypting) {
+			DrawText("Decrypting...", 0, 0, Font_small, Text_start_left, WHITE);
+		} else {
+			DrawText("Decrypting...", 0, 0, Font_small, Text_start_left, BLACK);
+		}
+		decrypting_old = decrypting;
+		updateDisplay = true;
+	}
+
+	// Display code if it has changed
+	static uint8_t buffer_old[CODE_LENGTH];
+	if (memcmp(code_buffer, buffer_old, CODE_LENGTH) != 0 || updateDisplay) {
+		DisplayCode(code_buffer, CODE_LENGTH);
+		memcpy(buffer_old, code_buffer, CODE_LENGTH);
+		updateDisplay = true;
+	}
+
+
+	if (updateDisplay) {
+		WriteDisplay();
+	}
 }
 
 void DisplayCode(char* buffer, uint8_t length) {
@@ -121,9 +124,7 @@ void DisplayCode(char* buffer, uint8_t length) {
 	memcpy(codeString, buffer, CODE_LENGTH);
 	codeString[CODE_LENGTH] = '\0';
 
-	DrawText(codeString, DISPLAY_WIDTH / 2, (DISPLAY_HEIGHT - 18) / 2, Font_large, Text_start_center);
-	
-	WriteDisplay();
+	DrawText(codeString, DISPLAY_WIDTH / 2, (DISPLAY_HEIGHT - 18) / 2, Font_large, Text_start_center, WHITE);
 }
 
 
