@@ -20,7 +20,7 @@
 
 rsaData RSAData;
 XGpio leds;
-char code_buffer[CODE_LENGTH] = {'0', '0', '0', '0'};
+char code_buffer[CODE_LENGTH] = {DEFAULT_CODE, DEFAULT_CODE, DEFAULT_CODE, DEFAULT_CODE};
 
 void DisplayCode(char* buffer, uint8_t length);
 void statusLED();
