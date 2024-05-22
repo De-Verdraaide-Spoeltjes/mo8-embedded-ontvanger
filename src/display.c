@@ -1,5 +1,4 @@
 #include "display.h"
-#include "libs/GFX/GFX.h"
 #include "defines.h"
 #include "xstatus.h"
 #include "sleep.h"
@@ -188,7 +187,7 @@ XStatus initDisplay() {
 }
 
 // draw text
-void DrawText(const char* text, uint16_t xpos, uint16_t ypos, uint8_t fontSize, uint8_t nullAlignment) {
+void DrawText(const char* text, uint16_t xpos, uint16_t ypos, uint8_t fontSize, uint8_t nullAlignment, enum displayPixelColor color) {
     setFontSize(fontSize);
 
 	int16_t xtop = 0;
@@ -197,6 +196,7 @@ void DrawText(const char* text, uint16_t xpos, uint16_t ypos, uint8_t fontSize, 
 	uint16_t height = 0;
 
 	int lengthText = strlen(text);
+    GFX_setTextColor(color);
 	GFX_getTextBounds((char*)text, lengthText, 0, 0, &xtop, &ytop, &width, &height);
     GFX_setCursor(xpos - xtop - width*nullAlignment/2, ypos - ytop);
     GFX_drawText((char*)text, lengthText);

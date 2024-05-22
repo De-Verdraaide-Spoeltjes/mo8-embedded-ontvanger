@@ -17,6 +17,12 @@ typedef struct RSAData {
 
 #define CODE_LENGTH 4
 
+#define DEFAULT_CODE    '_'
+#define CODE_ERROR  	'.'
+#define CODE_MAX_DIGIT  '9'
+#define CODE_MIN_DIGIT  '0'
+
+
 #define STATUS_BLINK 200 //ms
 
 #define DISPLAY_WIDTH 128
