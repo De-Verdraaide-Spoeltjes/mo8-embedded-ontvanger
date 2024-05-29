@@ -1,66 +1,64 @@
 #include "generate_rsa_keys.h"
 #include "defines.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <limits.h>
 #include "xstatus.h"
 #include "xil_printf.h"
-
-uint32_t *primes;
-uint32_t primeCount;
 
 void print64(uint64_t num) {
 	xil_printf("%x",(unsigned int)((num & 0xFFFFFFFF00000000) >> 32));
 	xil_printf("%x\r\n",(unsigned int)(num & 0x00000000FFFFFFFF));
 }
 
-void seedPrimes() {
-	bool isPrime[RSA_PRIMES_MAXIMUM + 1];
+void extendedEuclid(uint64_t a, uint64_t b, int64_t *g, int64_t *y, int64_t *x) {
+	if (a == 0) {
+		*g = b;
+		*y = 0;
+		*x = 1;
+		return;
+	}	
 
-	for (int i = 1; i <= RSA_PRIMES_MAXIMUM; i++) {
-		isPrime[i] = true;
-	}
+	int64_t g2, y2, x2;
+	extendedEuclid(b % a, a, &g2, &y2, &x2);
+	
+	*g = g2;
+ 	*y = x2 - (b / a) * y2;
+	*x = y2;
+}
 
-	isPrime[0] = false;
-	isPrime[1] = false;
-	isPrime[2] = false;
+uint32_t modInv(uint32_t a, uint32_t m) {
+	int64_t g, y, x;
+	extendedEuclid(a, m, &g, &y, &x);
+	return (y + m) % m;
+}
 
-	for (int i = 2; i <= RSA_PRIMES_MAXIMUM; i++) {
-		int j = 2 * (i);
-		while (j <= RSA_PRIMES_MAXIMUM) {
-			isPrime[j] = false;
-			j += i;
+bool isPrime(uint32_t num) {
+	double root = sqrt(num);
+
+	for (int i = 2; i <= root; i++) {
+		if (num % i == 0) {
+			return false;
 		}
 	}
 
-	primeCount = 0;
-	for (int i = 0; i <= RSA_PRIMES_MAXIMUM; i++) {
-		if (isPrime[i]) {
-			primeCount++;
-		}
-	}
-
-	primes = (uint32_t *)malloc(primeCount * sizeof(uint32_t));
-
-	primeCount = 0;
-	for (int i = 0; i <= RSA_PRIMES_MAXIMUM; i++) {
-		if (isPrime[i]) {
-			primes[primeCount] = i;
-			primeCount++;
-		}
-	}
+	return true;
 }
 
 uint32_t generateRandomPrime() {
+	uint32_t lower = 1000;
+	uint32_t upper = UINT16_MAX;
 	bool found = false;
-	uint32_t randomPrime = 0;
-	while (!found) {
-		randomPrime = primes[rand() % primeCount];
-		found = randomPrime > RSA_PRIMES_MINIMUM;
-	}
 
-	return randomPrime;
+	uint64_t random;
+	while (!found) {
+		random = (rand() % (upper - lower + 1)) + lower;
+		found = isPrime(random);
+	}
+	return random;
 }
 
 uint64_t gcd(uint64_t a, uint64_t b) {
@@ -87,22 +85,11 @@ void generatePublicKey(uint64_t totient, rsaData *data) {
 	}
 }
 
-void generatePrivateKey(int totient, rsaData *data) {
-	bool found = false;
-	uint64_t key = 2;
-	while (!found) {
-		if ((key * data->publicKey) % totient == 1) {
-			found = true;
-			data->privateKey = key;
-		}
-		key++;
-	}
+void generatePrivateKey(uint32_t totient, rsaData *data) {
+	data->privateKey = modInv(data->publicKey, totient);
 }
 
 void generateRSAKeys(rsaData *data, uint64_t seed) {
-	// Generate a list of prime numbers
-	seedPrimes();
-
 	// Seed the random number generator
 	srand(seed);
 
@@ -113,17 +100,15 @@ void generateRSAKeys(rsaData *data, uint64_t seed) {
 		p = generateRandomPrime();
 		q = generateRandomPrime();
 		if (p != q) {
-			if (p * q < 65536) {
-					found = true;
-				}
+			found = true;
 		}
 	}
+	data->primes_p = p;
+	data->primes_q = q;
+
 	#ifdef DEBUG
 		xil_printf("Primes: %x, %x\n\r", p, q);
 	#endif
-
-	// Free the primes list from memory
-	free(primes);
 
 	// Calculate the modulus
 	data->modulus = p * q;
