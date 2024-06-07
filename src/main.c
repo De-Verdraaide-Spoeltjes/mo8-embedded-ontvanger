@@ -67,7 +67,11 @@ void Initialize() {
 int main()
 {
     init_platform();
-	print("Starting embedded application\n\r");
+
+	#ifdef DEBUG
+		print("Starting embedded application\n\r");
+	#endif
+
 	XGpio_Initialize(&leds, STATUS_LED_DEVICE_ID);
 	XGpio_SetDataDirection(&leds, 1, 0x0);
 
@@ -77,10 +81,15 @@ int main()
 	// display code
 	DisplayCode(code_buffer, CODE_LENGTH);
 
-	print("Entering main loop\n\r");
+	#ifdef DEBUG
+		print("Entering main loop\n\r");
+	#endif
 
     while(1) {
-        statusLED();
+		#ifdef DEBUG
+			statusLED();
+		#endif
+		
         runKeyTransmitter(&RSAData);
         bool decrypting = decryption(&RSAData, code_buffer);
 

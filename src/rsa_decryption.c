@@ -20,10 +20,9 @@ uint32_t *prime_values;
 #define ENCRYPTED_DATA_BASE_ADDR     	XPAR_CONNECTION_EMBEDDED_RSA_VERSLEUTELD_KARAKTER_BASEADDR
 
 
-uint64_t decryptCRT(uint64_t encryptedData, uint64_t privateKey, uint32_t modulus);
+uint64_t decryptCRT(uint64_t encryptedData, uint64_t privateKey, uint32_t modulus, uint64_t p, uint64_t q);
 uint64_t modPow(uint64_t base, uint64_t exp, uint64_t mod);
 uint64_t modInverse(uint64_t a, uint64_t m);
-void calc_primes();
 
 XStatus initDecryption() {
 	//	Do something here
@@ -32,15 +31,9 @@ XStatus initDecryption() {
 	XGpio_SetDataDirection(&dataCom, 1, 0xFFFFFFFF);
 	XGpio_SetDataDirection(&dataCom, 1, 0x0);
 
-	calc_primes();
-
 	return XST_SUCCESS;
 }
 
-// test values
-// uint64_t publicKey = 7;
-uint64_t privateKey = 11581303;
-uint32_t modulus = 27033439;
 bool decryption(rsaData *RSAData, char *code_buffer){
 	// Store the encrypted data
 	static uint32_t encryptedData[CODE_LENGTH];
@@ -104,7 +97,7 @@ bool decryption(rsaData *RSAData, char *code_buffer){
 		case Decryption_decrypt:
 			// Decrypt the data
 			for (int i = 0; i < CODE_LENGTH; i++) {
-				code_buffer[i] = decryptCRT(encryptedData[i], privateKey, modulus);
+				code_buffer[i] = decryptCRT(encryptedData[i], RSAData->privateKey, RSAData->modulus, RSAData->primes_p, RSAData->primes_q);
 
 				if (code_buffer[i] > CODE_MAX_DIGIT || code_buffer[i] < CODE_MIN_DIGIT) {
 					code_buffer[i] = CODE_ERROR;
@@ -141,23 +134,14 @@ bool decryption(rsaData *RSAData, char *code_buffer){
  * @param encryptedData The data to be decrypted.
  * @param privateKey The private key used for decryption.
  * @param modulus The modulus used for decryption.
+ * @param p The first prime number.
+ * @param q The second prime number.
  * @return The decrypted data.
  */
-uint64_t decryptCRT(uint64_t encryptedData, uint64_t privateKey, uint32_t modulus) {
-	uint64_t p = 0;
-	uint64_t q = 0;
+uint64_t decryptCRT(uint64_t encryptedData, uint64_t privateKey, uint32_t modulus, uint64_t p, uint64_t q) {
 	uint64_t dP = 0;
 	uint64_t dQ = 0;
 	uint64_t qInv = 0;
-
-	// Calculate p and q
-	for (int i = 0; i < RSA_PRIMES_MAXIMUM; i++) {
-		if (modulus % prime_values[i] == 0) {
-			p = prime_values[i];
-			q = modulus / prime_values[i];
-			break;
-		}
-	}
 
 	// Calculate dP, dQ and qInv
 	dP = privateKey % (p - 1);
@@ -211,45 +195,4 @@ uint64_t modInverse(uint64_t a, uint64_t m) {
 		}
 	}
 	return 1;
-}
-
-/** Calculates the prime values up to the maximum value.
- */
-void calc_primes() {
-	bool isPrime[RSA_PRIMES_MAXIMUM + 1];
-	uint32_t primeCount;
-
-
-	for (int i = 1; i <= RSA_PRIMES_MAXIMUM; i++) {
-		isPrime[i] = true;
-	}
-
-	isPrime[0] = false;
-	isPrime[1] = false;
-	isPrime[2] = false;
-
-	for (int i = 2; i <= RSA_PRIMES_MAXIMUM; i++) {
-		int j = 2 * (i);
-		while (j <= RSA_PRIMES_MAXIMUM) {
-			isPrime[j] = false;
-			j += i;
-		}
-	}
-
-	primeCount = 0;
-	for (int i = 0; i <= RSA_PRIMES_MAXIMUM; i++) {
-		if (isPrime[i]) {
-			primeCount++;
-		}
-	}
-
-	prime_values = (uint32_t *)malloc(primeCount * sizeof(uint32_t));
-
-	primeCount = 0;
-	for (int i = 0; i <= RSA_PRIMES_MAXIMUM; i++) {
-		if (isPrime[i]) {
-			prime_values[primeCount] = i;
-			primeCount++;
-		}
-	}
 }
