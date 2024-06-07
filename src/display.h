@@ -5,7 +5,7 @@
 #include "libs/GFX/GFX.h"
 
 XStatus initDisplay();
-void WriteDisplay();
+XStatus WriteDisplay();
 void DrawText(const char* text, uint16_t xpos, uint16_t ypos, uint8_t fontSize, uint8_t nullAlignment, enum displayPixelColor color);
 
 #endif

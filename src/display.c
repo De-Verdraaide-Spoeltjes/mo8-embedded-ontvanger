@@ -59,8 +59,10 @@ XIicPs iic;
 
 static unsigned char displayData[DISPLAY_WIDTH * DISPLAY_HEIGHT / 8]; // Display buffer
 
-static void initialize_OLED();                        // Initialize OLED
-static void writeMulti(uint8_t *src, uint16_t count); // Write multiple bytes
+XStatus initialize_OLED();                        // Initialize OLED
+XStatus WriteDisplay();                     // Write display
+void DrawText(const char* text, uint16_t xpos, uint16_t ypos, uint8_t fontSize, uint8_t nullAlignment, enum displayPixelColor color); // Draw text
+static XStatus writeMulti(uint8_t *src, uint16_t count); // Write multiple bytes
 
 #define _swap_int16_t(a, b) { int16_t t = a; a = b; b = t; }
 
@@ -148,7 +150,7 @@ XStatus initDisplay() {
     if (config == NULL)
     {
         #ifdef DEBUG
-        xil_printf("Error: XIicPs_LookupConfig\n");
+            xil_printf("Error: XIicPs_LookupConfig\n");
         #endif
         return XST_FAILURE;
     }
@@ -157,7 +159,7 @@ XStatus initDisplay() {
     if (status != XST_SUCCESS)
     {
         #ifdef DEBUG
-        xil_printf("Error: XIicPs_CfgInitialize\n");
+            xil_printf("Error: XIicPs_CfgInitialize\n");
         #endif
         return XST_FAILURE;
     }
@@ -166,7 +168,7 @@ XStatus initDisplay() {
     if (status != XST_SUCCESS)
     {
         #ifdef DEBUG
-        xil_printf("Error: XIicPs_SelfTest\n");
+            xil_printf("Error: XIicPs_SelfTest\n");
         #endif
         return XST_FAILURE;
     }
@@ -181,8 +183,15 @@ XStatus initDisplay() {
     initialize_OLED();               // Initialize screen
     memset(displayData, 0, sizeof(displayData)); // Initialize array with 0s
 
-    WriteDisplay();                  // Send data
-
+    status = WriteDisplay();         // Send data
+    if (status != XST_SUCCESS)
+    {
+        #ifdef DEBUG
+            xil_printf("Error: WriteDisplay\n");
+        #endif
+        return XST_FAILURE;
+    }
+    
     return XST_SUCCESS;
 }
 
@@ -202,7 +211,7 @@ void DrawText(const char* text, uint16_t xpos, uint16_t ypos, uint8_t fontSize, 
     GFX_drawText((char*)text, lengthText);
 }
 
-static void initialize_OLED()
+XStatus initialize_OLED()
 {
     const uint8_t init_commmands[] = {
         COMMAND_MODE,
@@ -236,10 +245,11 @@ static void initialize_OLED()
         SH1106_DISPLAYON, //--turn on oled panel
     };
 
-    writeMulti((uint8_t *)init_commmands, sizeof(init_commmands) / sizeof(uint8_t));
+    return writeMulti((uint8_t *)init_commmands, sizeof(init_commmands) / sizeof(uint8_t));
 }
 
-void WriteDisplay() {
+XStatus WriteDisplay() {
+    XStatus status = XST_SUCCESS;
     const uint8_t flush_commands[] = {
         COMMAND_MODE,
         SH1106_SETLOWCOLUMN | 0x0,
@@ -247,7 +257,7 @@ void WriteDisplay() {
         SH1106_SETSTARTLINE | 0x0,
     };
 
-    writeMulti((uint8_t *)flush_commands, sizeof(flush_commands) / sizeof(uint8_t));
+    status |= writeMulti((uint8_t *)flush_commands, sizeof(flush_commands) / sizeof(uint8_t));
 
     uint8_t height = DISPLAY_HEIGHT;
 	uint8_t width = DISPLAY_WIDTH + 4;
@@ -267,7 +277,7 @@ void WriteDisplay() {
             0x10 | (m_col >> 4),   //set higher column address
             m_col & 0xf,           //set lower column address
         };
-        writeMulti((uint8_t *)page_commands, sizeof(page_commands) / sizeof(uint8_t));
+        status |= writeMulti((uint8_t *)page_commands, sizeof(page_commands) / sizeof(uint8_t));
 
         // write data
         const uint8_t data_header[] = {
@@ -285,19 +295,22 @@ void WriteDisplay() {
             pos += width;
 
             // write buffer
-            writeMulti(buffer, sizeof(buffer) / sizeof(uint8_t));
+            status |= writeMulti(buffer, sizeof(buffer) / sizeof(uint8_t));
         }
     }
 
     // reset memory
     memset(displayData, 0, sizeof(displayData));
+
+    return status;
 }
 
 // starting at the given register
-static void writeMulti(uint8_t *src, uint16_t count) {
-    int status;
+static XStatus writeMulti(uint8_t *src, uint16_t count) {
+    XStatus status;
     status = XIicPs_MasterSendPolled(&iic, src, count, I2C_SLAVE_DEVICE_ADDRESS);
     if (status != XST_SUCCESS) {
+
 #ifdef DEBUG
         xil_printf("error writing: \t");
         for (uint8_t i = 0; i < count; i++) {
@@ -305,8 +318,10 @@ static void writeMulti(uint8_t *src, uint16_t count) {
         }
         xil_printf("\r\n\r\n");
 #endif
-        return;
+        return status;
     }
 
-    usleep(IIC_DELAY);
+   usleep(IIC_DELAY);
+
+   return status;
 }

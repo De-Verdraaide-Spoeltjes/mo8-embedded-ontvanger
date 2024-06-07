@@ -47,9 +47,6 @@ bool decryption(rsaData *RSAData, char *code_buffer){
 	// Flag to indicate if data is ready
 	static bool dataReady = false;
 
-	// Check if data is ready
-	static bool prevDataReadyState = false;
-
 	// Check if the data is ready
 	bool dataReadyState = XGpio_DiscreteRead(&dataCom, 1) & 0x1;
 	// Check for a rising edge
@@ -63,8 +60,6 @@ bool decryption(rsaData *RSAData, char *code_buffer){
 			code_buffer[i] = DEFAULT_CODE;
 		}
 	}
-	// Store the previous data ready state
-	prevDataReadyState = dataReadyState;
 	
 	// State machine
 	switch (state) {
